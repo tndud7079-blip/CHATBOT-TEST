@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<!--
+  설문 데이터 Q&A 챗봇 — 화면(UI) v0.2 (2026-11-06) · 토스 스타일
+  ───────────────────────────────────────────────────────────
+  • 배포하면 여러 명이 URL로 접속해 사용.
+  • 질문 → /api/chat (백엔드) → Gemini → 답변/근거/추천질문.
+  • 백엔드가 없으면(로컬에서 파일로 연 경우) 자동으로 "데모 모드"로 동작.
+  ───────────────────────────────────────────────────────────
+-->
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>설문 데이터 챗봇</title>
+<link rel="stylesheet" as="style" crossorigin
+      href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@1.3.9/dist/web/static/pretendard.min.css" />
+<style>
+  /* ===== 토스 컬러 시스템 (색은 여기 변수로만) ===== */
+  :root{
+    --blue:#3182f6;          /* 토스 블루 = 주요 액션 */
+    --blue-dark:#1b64da;
+    --blue-light:#e8f3ff;
+
+    --g900:#191f28;          /* 가장 진한 글자 */
+    --g800:#333d4b;
+    --g700:#4e5968;
+    --g600:#6b7684;
+    --g500:#8b95a1;
+    --g400:#b0b8c1;
+    --g300:#d1d6db;
+    --g200:#e5e8eb;
+    --g100:#f2f4f6;          /* 배경 */
+    --g50:#f9fafb;
+    --white:#ffffff;
+
+    --radius:20px;
+    --radius-sm:12px;
+    --shadow:0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+  }
+
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:var(--g100);
+    color:var(--g900);
+    font-family:'Pretendard',-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif;
+    letter-spacing:-0.01em;
+    display:flex; justify-content:center;
+  }
+
+  .app{
+    width:100%; max-width:720px;
+    height:100vh; height:100dvh;
+    display:flex; flex-direction:column;
+    background:var(--g100);
+  }
+
+  /* ===== 헤더 ===== */
+  .header{
+    flex:0 0 auto;
+    background:var(--white);
+    padding:16px 20px;
+    display:flex; align-items:center; gap:12px;
+    border-bottom:1px solid var(--g200);
+  }
+  .header .logo{
+    width:38px; height:38px; border-radius:11px;
+    background:var(--blue); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-weight:800; font-size:16px;
+    box-shadow:0 4px 10px rgba(49,130,246,.25);
+  }
+  .header .titles{display:flex; flex-direction:column; line-height:1.35;}
+  .header .title{font-size:17px; font-weight:700; color:var(--g900);}
+  .header .subtitle{font-size:12.5px; color:var(--g500);}
+  .status-badge{
+    margin-left:auto;
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:11.5px; font-weight:600;
+    padding:5px 10px; border-radius:999px;
+    color:#c2410c; background:#fff3e8; border:1px solid #ffddc2;
+  }
+  .status-badge .dot{width:6px; height:6px; border-radius:50%; background:currentColor;}
+  .status-badge.live{color:#0a8a4a; background:#e7f8ef; border-color:#bdeccd;}
+
+  /* ===== 대화 영역 ===== */
+  .chat{
+    flex:1 1 auto; overflow-y:auto;
+    padding:22px 16px 10px;
+    display:flex; flex-direction:column; gap:22px;
+    scroll-behavior:smooth;
+  }
+
+  .msg{display:flex; flex-direction:column;}
+  .msg.user{align-items:flex-end;}
+  .msg.bot{align-items:flex-start;}
+
+  .bubble{
+    padding:15px 17px;
+    border-radius:var(--radius);
+    font-size:15.5px; line-height:1.68;
+    white-space:pre-wrap; word-break:break-word;
+  }
+  .msg.user .bubble{
+    background:var(--blue); color:#fff;
+    border-bottom-right-radius:6px;
+    max-width:86%;
+    box-shadow:0 4px 12px rgba(49,130,246,.2);
+  }
+  .bot-block{max-width:90%; display:flex; flex-direction:column;}
+  .msg.bot .bubble{
+    background:var(--white); color:var(--g800);
+    border-bottom-left-radius:6px;
+    box-shadow:var(--shadow);
+  }
+
+  /* ===== 액션 줄 ===== */
+  .actions{display:flex; align-items:center; gap:2px; margin:10px 6px 0;}
+  .act-btn{
+    border:none; background:transparent; cursor:pointer;
+    color:var(--g400);
+    padding:7px 8px; border-radius:9px;
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:13px; font-weight:500; font-family:inherit;
+    transition:all .12s;
+  }
+  .act-btn:hover{background:var(--g100); color:var(--g600);}
+  .act-btn.active{color:var(--blue); background:var(--blue-light);}
+  .act-btn .ico{font-size:14px; line-height:1;}
+  .act-divider{width:1px; height:15px; background:var(--g200); margin:0 5px;}
+  .act-btn.src-btn{color:var(--g600); font-weight:600;}
+  .act-btn.src-btn:hover{color:var(--blue); background:var(--blue-light);}
+
+  /* ===== 답변 근거 패널 ===== */
+  .sources{
+    margin:10px 6px 0;
+    display:none;
+    border:1px solid var(--g200);
+    border-radius:var(--radius-sm);
+    background:var(--g50);
+    overflow:hidden;
+  }
+  .sources.open{display:block; animation:fadein .18s ease;}
+  @keyframes fadein{from{opacity:0; transform:translateY(-4px);} to{opacity:1; transform:none;}}
+  .src-head{
+    padding:10px 14px; font-size:12px; font-weight:700; color:var(--g500);
+    border-bottom:1px solid var(--g200); background:var(--white);
+  }
+  .source-item{padding:13px 15px; border-bottom:1px solid var(--g200); font-size:13.5px; line-height:1.6;}
+  .source-item:last-child{border-bottom:none;}
+  .source-item .src-tag{
+    display:inline-block; font-size:11px; font-weight:700; color:var(--blue);
+    background:var(--blue-light); padding:3px 8px; border-radius:7px; margin-bottom:7px;
+  }
+  .source-item .src-body{color:var(--g700);}
+
+  /* ===== 추천 질문 ===== */
+  .suggests{margin:14px 2px 0;}
+  .suggests .sug-label{font-size:12px; font-weight:700; color:var(--g500); margin:0 4px 8px;}
+  .suggest-row{
+    display:flex; align-items:center; gap:11px;
+    padding:14px 16px; margin-bottom:8px;
+    background:var(--white);
+    border:1px solid var(--g200); border-radius:14px;
+    cursor:pointer; font-size:14.5px; color:var(--g800); font-weight:500;
+    transition:all .13s;
+  }
+  .suggest-row:last-child{margin-bottom:0;}
+  .suggest-row:hover{border-color:var(--blue); background:var(--blue-light); color:var(--blue-dark);}
+  .suggest-row .plus{
+    flex:0 0 auto; width:22px; height:22px; border-radius:7px;
+    background:var(--g100); color:var(--g500);
+    display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600;
+    transition:all .13s;
+  }
+  .suggest-row:hover .plus{background:var(--blue); color:#fff;}
+  .suggest-row .q{flex:1 1 auto;}
+  .suggest-row .arrow{color:var(--g400); font-size:13px;}
+
+  /* ===== 타이핑 표시 ===== */
+  .typing{display:flex; gap:5px; padding:6px 2px;}
+  .typing span{width:8px; height:8px; border-radius:50%; background:var(--g400); animation:blink 1.2s infinite;}
+  .typing span:nth-child(2){animation-delay:.2s;}
+  .typing span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,60%,100%{opacity:.25;} 30%{opacity:.95;}}
+
+  /* ===== 입력창 ===== */
+  .composer{flex:0 0 auto; background:var(--white); border-top:1px solid var(--g200); padding:14px 16px calc(16px + env(safe-area-inset-bottom));}
+  .composer .box{
+    display:flex; align-items:flex-end; gap:8px;
+    background:var(--g100); border:1.5px solid var(--g100);
+    border-radius:24px; padding:6px 6px 6px 18px;
+    transition:border-color .13s, background .13s;
+  }
+  .composer .box:focus-within{border-color:var(--blue); background:var(--white);}
+  .composer textarea{
+    flex:1 1 auto; border:none; background:transparent; resize:none;
+    font-size:15.5px; line-height:1.5; color:var(--g900); font-family:inherit;
+    max-height:120px; padding:8px 0; outline:none;
+  }
+  .composer textarea::placeholder{color:var(--g400);}
+  .send-btn{
+    flex:0 0 auto; width:40px; height:40px; border-radius:50%;
+    border:none; cursor:pointer; background:var(--blue); color:#fff;
+    font-size:18px; display:flex; align-items:center; justify-content:center; transition:all .13s;
+  }
+  .send-btn:hover:not(:disabled){background:var(--blue-dark);}
+  .send-btn:disabled{background:var(--g300); cursor:default;}
+  .composer .hint{text-align:center; font-size:11px; color:var(--g400); margin-top:9px;}
+</style>
+</head>
+<body>
+  <div class="app">
+
+    <header class="header">
+      <div class="logo">설</div>
+      <div class="titles">
+        <span class="title">설문 데이터 챗봇</span>
+        <span class="subtitle">설문조사 결과를 근거로 답해드려요</span>
+      </div>
+      <span class="status-badge" id="statusBadge"><span class="dot"></span>데모 · 데이터 미연결</span>
+    </header>
+
+    <main class="chat" id="chat"></main>
+
+    <footer class="composer">
+      <div class="box">
+        <textarea id="input" rows="1" placeholder="설문 데이터에 대해 물어보세요"></textarea>
+        <button class="send-btn" id="sendBtn" title="보내기" disabled>↑</button>
+      </div>
+      <div class="hint" id="hint">※ 데모 모드 — 실제 설문 데이터와 AI는 아직 연결되지 않았습니다.</div>
+    </footer>
+
+  </div>
+
+<script>
+/* ====================================================================
+   챗봇 로직
+   - 배포 후: /api/chat 백엔드가 Gemini를 호출 → 실제 답변.
+   - 로컬/백엔드 없음: 자동으로 데모 답변으로 대체.
+   ==================================================================== */
+
+const chatEl   = document.getElementById('chat');
+const inputEl  = document.getElementById('input');
+const sendBtn  = document.getElementById('sendBtn');
+const badgeEl  = document.getElementById('statusBadge');
+const hintEl   = document.getElementById('hint');
+
+/* ---------- 배지 상태 ---------- */
+function setLive(isLive){
+  if (isLive){
+    badgeEl.classList.add('live');
+    badgeEl.innerHTML = '<span class="dot"></span>AI 연결됨';
+    hintEl.textContent = '설문 데이터를 근거로 AI가 답변합니다.';
+  }else{
+    badgeEl.classList.remove('live');
+    badgeEl.innerHTML = '<span class="dot"></span>데모 · 데이터 미연결';
+    hintEl.textContent = '※ 데모 모드 — 실제 설문 데이터와 AI는 아직 연결되지 않았습니다.';
+  }
+}
+
+/* ---------- 화면 그리기 ---------- */
+function renderUser(text){
+  const w = document.createElement('div'); w.className = 'msg user';
+  w.innerHTML = '<div class="bubble"></div>';
+  w.querySelector('.bubble').textContent = text;
+  chatEl.appendChild(w); scrollToBottom();
+}
+
+function renderBot(data){
+  const w = document.createElement('div'); w.className = 'msg bot';
+  const block = document.createElement('div'); block.className = 'bot-block';
+
+  const bubble = document.createElement('div'); bubble.className = 'bubble';
+  bubble.textContent = data.answer; block.appendChild(bubble);
+
+  const srcCount = (data.sources || []).length;
+  const actions = document.createElement('div'); actions.className = 'actions';
+  actions.innerHTML = `
+    <button class="act-btn" data-act="up"   title="도움돼요"><span class="ico">👍</span></button>
+    <button class="act-btn" data-act="down" title="아쉬워요"><span class="ico">👎</span></button>
+    <button class="act-btn" data-act="copy" title="복사"><span class="ico">📋</span></button>
+    ${srcCount ? `<span class="act-divider"></span>
+    <button class="act-btn src-btn" data-act="src"><span class="ico">💬</span> 답변 근거 ${srcCount}</button>` : ``}
+  `;
+  block.appendChild(actions);
+
+  let srcPanel = null;
+  if (srcCount){
+    srcPanel = document.createElement('div'); srcPanel.className = 'sources';
+    srcPanel.innerHTML = '<div class="src-head">이 답변의 근거가 된 데이터</div>' +
+      data.sources.map(s => `
+        <div class="source-item">
+          <span class="src-tag">${escapeHtml(s.tag || '근거')}</span>
+          <div class="src-body">${escapeHtml(s.text)}</div>
+        </div>`).join('');
+    block.appendChild(srcPanel);
+  }
+
+  if ((data.suggestions || []).length){
+    const sug = document.createElement('div'); sug.className = 'suggests';
+    sug.innerHTML = '<div class="sug-label">이어서 물어보기</div>';
+    data.suggestions.forEach(q => {
+      const row = document.createElement('div'); row.className = 'suggest-row';
+      row.innerHTML = '<span class="plus">＋</span><span class="q"></span><span class="arrow">↗</span>';
+      row.querySelector('.q').textContent = q;
+      row.addEventListener('click', () => ask(q));
+      sug.appendChild(row);
+    });
+    block.appendChild(sug);
+  }
+
+  actions.addEventListener('click', (e) => {
+    const btn = e.target.closest('.act-btn'); if (!btn) return;
+    const act = btn.dataset.act;
+    if (act === 'up'){ btn.classList.toggle('active'); actions.querySelector('[data-act=down]')?.classList.remove('active'); }
+    else if (act === 'down'){ btn.classList.toggle('active'); actions.querySelector('[data-act=up]')?.classList.remove('active'); }
+    else if (act === 'copy'){
+      navigator.clipboard?.writeText(data.answer);
+      const ico = btn.querySelector('.ico'); const old = ico.textContent;
+      ico.textContent = '✅'; setTimeout(()=>ico.textContent = old, 1200);
+    } else if (act === 'src' && srcPanel){ srcPanel.classList.toggle('open'); }
+  });
+
+  w.appendChild(block); chatEl.appendChild(w); scrollToBottom();
+}
+
+function renderTyping(){
+  const w = document.createElement('div'); w.className = 'msg bot'; w.id = 'typing-indicator';
+  w.innerHTML = '<div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>';
+  chatEl.appendChild(w); scrollToBottom();
+}
+function removeTyping(){ document.getElementById('typing-indicator')?.remove(); }
+function scrollToBottom(){ chatEl.scrollTop = chatEl.scrollHeight; }
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+
+/* ---------- 질문 처리 ---------- */
+async function ask(text){
+  const q = (text ?? inputEl.value).trim(); if (!q) return;
+  inputEl.value = ''; autoGrow();
+  renderUser(q); renderTyping();
+  try{
+    const data = await getAnswer(q);
+    removeTyping(); renderBot(data);
+  }catch(err){
+    removeTyping();
+    renderBot({ answer:'죄송해요, 답변을 가져오지 못했어요. 잠시 후 다시 시도해주세요.', sources:[], suggestions:[] });
+    console.error(err);
+  }
+}
+
+/* ---------- 답변 가져오기 (백엔드 → 실패 시 데모) ---------- */
+async function getAnswer(question){
+  try{
+    const res = await fetch('/api/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ question })
+    });
+    if (res.ok){
+      setLive(true);
+      return await res.json();   // { answer, sources:[{tag,text}], suggestions:[] }
+    }
+    throw new Error('backend status ' + res.status);
+  }catch(e){
+    // 백엔드가 없거나(file:// 로 연 경우) 오류 → 데모 답변
+    setLive(false);
+    await sleep(600);
+    return demoAnswer(question);
+  }
+}
+
+/* ---------- 데모용 가짜 답변 ---------- */
+function demoAnswer(question){
+  return {
+    answer:
+`(데모 답변) "${question}" 에 대한 분석 예시입니다.
+
+실제 버전에서는 설문조사 응답 수천~수만 건을 근거로 관련 데이터를 찾아 요약해 답변합니다. 지금은 화면 동작을 보여드리는 예시예요.
+
+예) 전체 응답자 중 68%가 긍정적으로 답했고, 연령대별로는 30대의 만족도가 가장 높았습니다.`,
+    sources:[
+      { tag:'문항 Q7 · 만족도', text:'“전반적으로 만족한다” — 매우 그렇다 32% / 그렇다 36% / 보통 22% / 아니다 10% (n=4,210)' },
+      { tag:'교차분석 · 연령대', text:'30대 긍정 74%, 40대 69%, 20대 61%, 50대 이상 58%' }
+    ],
+    suggestions:[
+      '연령대별 만족도 차이를 더 자세히 보여줘',
+      '불만족 응답이 가장 많았던 항목은?',
+      '주관식 답변에서 자주 나온 키워드는?'
+    ]
+  };
+}
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+/* ---------- 입력창 UX ---------- */
+function autoGrow(){
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+  sendBtn.disabled = inputEl.value.trim() === '';
+}
+inputEl.addEventListener('input', autoGrow);
+inputEl.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); ask(); } });
+sendBtn.addEventListener('click', () => ask());
+
+/* ---------- 첫 화면 ---------- */
+window.addEventListener('DOMContentLoaded', () => {
+  autoGrow();
+  renderBot({
+    answer:'안녕하세요! 설문 데이터 챗봇이에요. 📊\n궁금한 점을 질문하면 설문조사 결과를 근거로 답해드려요.\n아래 추천 질문을 눌러보셔도 좋아요.',
+    sources:[],
+    suggestions:[
+      '이번 설문에서 만족도가 가장 높은 항목은?',
+      '응답자는 총 몇 명이고 어떻게 구성돼 있어?',
+      '개선이 가장 시급해 보이는 부분은?'
+    ]
+  });
+});
+</script>
+</body>
+</html>

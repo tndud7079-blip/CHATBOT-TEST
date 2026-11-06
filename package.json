@@ -1,0 +1,7 @@
+{
+  "name": "survey-chatbot",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "description": "설문 데이터 Q&A 챗봇 (화면 + Gemini 백엔드)"
+}
