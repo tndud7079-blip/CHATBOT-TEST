@@ -20,6 +20,7 @@
     --blue:#3182f6;          /* 토스 블루 = 주요 액션 */
     --blue-dark:#1b64da;
     --blue-light:#e8f3ff;
+    --ai-purple:#6f5bff;     /* AI 아바타 그라데이션용 */
 
     --g900:#191f28;          /* 가장 진한 글자 */
     --g800:#333d4b;
@@ -92,9 +93,24 @@
     scroll-behavior:smooth;
   }
 
-  .msg{display:flex; flex-direction:column;}
-  .msg.user{align-items:flex-end;}
-  .msg.bot{align-items:flex-start;}
+  .msg{display:flex;}
+  .msg.user{flex-direction:row; justify-content:flex-end; align-items:flex-start; gap:10px;}
+  .msg.bot{flex-direction:row; align-items:flex-start; gap:10px;}
+
+  /* 아바타 아이콘 — AI(그라데이션) / 사용자(사람 실루엣) */
+  .bot-avatar{
+    flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+    background:linear-gradient(135deg,var(--blue),var(--ai-purple)); color:#fff;
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800; letter-spacing:-0.5px; margin-top:2px;
+    box-shadow:0 3px 8px rgba(80,90,255,.3);
+  }
+  .user-avatar{
+    flex:0 0 auto; width:34px; height:34px; border-radius:50%;
+    background:var(--g300); color:#fff;
+    display:flex; align-items:center; justify-content:center; margin-top:2px;
+  }
+  .user-avatar svg{width:19px; height:19px;}
 
   .bubble{
     padding:15px 17px;
@@ -105,10 +121,10 @@
   .msg.user .bubble{
     background:var(--blue); color:#fff;
     border-bottom-right-radius:6px;
-    max-width:86%;
+    max-width:80%;
     box-shadow:0 4px 12px rgba(49,130,246,.2);
   }
-  .bot-block{max-width:90%; display:flex; flex-direction:column;}
+  .bot-block{max-width:84%; display:flex; flex-direction:column;}
   .msg.bot .bubble{
     background:var(--white); color:var(--g800);
     border-bottom-left-radius:6px;
@@ -129,6 +145,9 @@
   .act-btn.active{color:var(--blue); background:var(--blue-light);}
   .act-btn .ico{font-size:14px; line-height:1;}
   .act-divider{width:1px; height:15px; background:var(--g200); margin:0 5px;}
+  .act-spacer{flex:1 1 auto;}            /* 👍👎를 오른쪽 끝으로 밀어줌 */
+  .act-sm{padding:5px 6px;}              /* 👍👎 작게 */
+  .act-sm .ico{font-size:12px;}
   .act-btn.src-btn{color:var(--g600); font-weight:600;}
   .act-btn.src-btn:hover{color:var(--blue); background:var(--blue-light);}
 
@@ -159,24 +178,24 @@
   .suggests{margin:14px 2px 0;}
   .suggests .sug-label{font-size:12px; font-weight:700; color:var(--g500); margin:0 4px 8px;}
   .suggest-row{
-    display:flex; align-items:center; gap:11px;
-    padding:14px 16px; margin-bottom:8px;
+    display:flex; align-items:center; gap:9px;
+    padding:10px 13px; margin-bottom:6px;
     background:var(--white);
-    border:1px solid var(--g200); border-radius:14px;
-    cursor:pointer; font-size:14.5px; color:var(--g800); font-weight:500;
+    border:1px solid var(--g200); border-radius:12px;
+    cursor:pointer; font-size:13px; color:var(--g800); font-weight:500;
     transition:all .13s;
   }
   .suggest-row:last-child{margin-bottom:0;}
   .suggest-row:hover{border-color:var(--blue); background:var(--blue-light); color:var(--blue-dark);}
   .suggest-row .plus{
-    flex:0 0 auto; width:22px; height:22px; border-radius:7px;
+    flex:0 0 auto; width:18px; height:18px; border-radius:6px;
     background:var(--g100); color:var(--g500);
-    display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:600;
     transition:all .13s;
   }
   .suggest-row:hover .plus{background:var(--blue); color:#fff;}
   .suggest-row .q{flex:1 1 auto;}
-  .suggest-row .arrow{color:var(--g400); font-size:13px;}
+  .suggest-row .arrow{color:var(--g400); font-size:11px;}
 
   /* ===== 타이핑 표시 ===== */
   .typing{display:flex; gap:5px; padding:6px 2px;}
@@ -263,7 +282,7 @@ function setLive(isLive){
 /* ---------- 화면 그리기 ---------- */
 function renderUser(text){
   const w = document.createElement('div'); w.className = 'msg user';
-  w.innerHTML = '<div class="bubble"></div>';
+  w.innerHTML = '<div class="bubble"></div><div class="user-avatar"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0 2c-5 0-9 2.6-9 6.2V22h18v-1.8c0-3.6-4-6.2-9-6.2Z"/></svg></div>';
   w.querySelector('.bubble').textContent = text;
   chatEl.appendChild(w); scrollToBottom();
 }
@@ -278,11 +297,10 @@ function renderBot(data){
   const srcCount = (data.sources || []).length;
   const actions = document.createElement('div'); actions.className = 'actions';
   actions.innerHTML = `
-    <button class="act-btn" data-act="up"   title="도움돼요"><span class="ico">👍</span></button>
-    <button class="act-btn" data-act="down" title="아쉬워요"><span class="ico">👎</span></button>
-    <button class="act-btn" data-act="copy" title="복사"><span class="ico">📋</span></button>
-    ${srcCount ? `<span class="act-divider"></span>
-    <button class="act-btn src-btn" data-act="src"><span class="ico">💬</span> 답변 근거 ${srcCount}</button>` : ``}
+    ${srcCount ? `<button class="act-btn src-btn" data-act="src"><span class="ico">💬</span> 답변 근거 ${srcCount}</button>` : ``}
+    <span class="act-spacer"></span>
+    <button class="act-btn act-sm" data-act="up"   title="도움돼요"><span class="ico">👍</span></button>
+    <button class="act-btn act-sm" data-act="down" title="아쉬워요"><span class="ico">👎</span></button>
   `;
   block.appendChild(actions);
 
@@ -323,12 +341,14 @@ function renderBot(data){
     } else if (act === 'src' && srcPanel){ srcPanel.classList.toggle('open'); }
   });
 
-  w.appendChild(block); chatEl.appendChild(w); scrollToBottom();
+  const avatar = document.createElement('div'); avatar.className = 'bot-avatar'; avatar.textContent = 'AI';
+  w.appendChild(avatar); w.appendChild(block);
+  chatEl.appendChild(w); scrollToBottom();
 }
 
 function renderTyping(){
   const w = document.createElement('div'); w.className = 'msg bot'; w.id = 'typing-indicator';
-  w.innerHTML = '<div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>';
+  w.innerHTML = '<div class="bot-avatar">AI</div><div class="bubble"><div class="typing"><span></span><span></span><span></span></div></div>';
   chatEl.appendChild(w); scrollToBottom();
 }
 function removeTyping(){ document.getElementById('typing-indicator')?.remove(); }
